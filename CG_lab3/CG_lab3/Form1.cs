@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,12 +21,12 @@ namespace CG_lab3
         G,
         B
     }
-    public partial class Form1 : Form
+    public partial class lab3 : Form
     {
         string fileName = "";
         bool loaded = false;
 
-        public Form1()
+        public lab3()
         {
             InitializeComponent();
             pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
@@ -110,38 +111,23 @@ namespace CG_lab3
         private void button4_Click(object sender, EventArgs e)
         {
             Mat src = new Mat(fileName);
-            Mat dst = new Mat();
-
-            // Histogram view
-            const int Width = 260, Height = 200;
-            Mat render = new Mat(new OpenCvSharp.Size(Width, Height), MatType.CV_8UC3, Scalar.All(255));
-
-            // Calculate histogram
-            Mat hist = new Mat();
-            int[] hdims = { 256 }; // Histogram size for each dimension
-            Rangef[] ranges = { new Rangef(0, 256), }; // min/max 
-            Cv2.CalcHist(
-                new Mat[] { src },
-                new int[] { 0 },
-                null,
-                hist,
-                1,
-                hdims,
-                ranges);
-
-            // Get the max value of histogram
+            int Width = 260, Height = pictureBox5.Height;
             double minVal, maxVal;
-            Cv2.MinMaxLoc(hist, out minVal, out maxVal);
+            Mat hist = new Mat();
+            int[] hdims = { 256 };
+            Rangef[] ranges = { new Rangef(0, 256), };
 
+            Mat render = new Mat(new OpenCvSharp.Size(Width, Height), MatType.CV_8UC3, Scalar.All(255));
+            Cv2.CalcHist( new Mat[] { src }, new int[] { 0 }, null, hist, 1, hdims, ranges);
             Scalar color = Scalar.All(2);
-            // Scales and draws histogram
+            Cv2.MinMaxLoc(hist, out minVal, out maxVal);
+            
             hist = hist * (maxVal != 0 ? Height / maxVal : 0.0);
-            for (int j = 0; j < hdims[0]; ++j)
+            for (int j = 0; j < hdims[0]; j++)
             {
-                int binW = (int)((double)Width / hdims[0]);
                 render.Rectangle(
-                    new OpenCvSharp.Point(j * binW, render.Rows - (int)(hist.Get<float>(j))),
-                    new OpenCvSharp.Point((j + 1) * binW, render.Rows),
+                    new OpenCvSharp.Point(j * (int)((double)Width / hdims[0]), render.Rows - (int)(hist.Get<float>(j))),
+                    new OpenCvSharp.Point((j + 1) * (int)((double)Width / hdims[0]), render.Rows),
                     color,
                     -1);
             }
@@ -153,169 +139,132 @@ namespace CG_lab3
         private void button5_Click(object sender, EventArgs e)
         {
             Mat src = new Mat(fileName);
-            Mat dst = new Mat();
+            int Width = 260, Height = pictureBox5.Height;
+            double minVal, maxVal;
+            Mat hist = new Mat();
+            int[] hdims = { 256 };
+            Rangef[] ranges = { new Rangef(0, 256), };
 
             src = src.CvtColor(ColorConversionCodes.BGR2GRAY);
-
-            Cv2.EqualizeHist(src, src);
-
-            // Histogram view
-            const int Width = 260, Height = 200;
+            Cv2.EqualizeHist(src, src);    
             Mat render = new Mat(new OpenCvSharp.Size(Width, Height), MatType.CV_8UC3, Scalar.All(255));
-
-            // Calculate histogram
-            Mat hist = new Mat();
-            Mat hist2 = new Mat();
-            int[] hdims = { 256 }; // Histogram size for each dimension
-            Rangef[] ranges = { new Rangef(0, 256), }; // min/max 
-           
-            Cv2.CalcHist(
-                new Mat[] { src },
-                new int[] { 0 },
-                null,
-                hist,
-                1,
-                hdims,
-                ranges);
-
-            
-
-            // Get the max value of histogram
-            double minVal, maxVal;
-            Cv2.MinMaxLoc(hist, out minVal, out maxVal);
-
+            Cv2.CalcHist(new Mat[] { src }, new int[] { 0 }, null, hist, 1, hdims, ranges);
             Scalar color = Scalar.All(2);
-            // Scales and draws histogram
+
+            Cv2.MinMaxLoc(hist, out minVal, out maxVal);
+         
             hist = hist * (maxVal != 0 ? Height / maxVal : 0.0);
             for (int j = 0; j < hdims[0]; ++j)
             {
-                int binW = (int)((double)Width / hdims[0]);
+               
                 render.Rectangle(
-                    new OpenCvSharp.Point(j * binW, render.Rows - (int)(hist.Get<float>(j))),
-                    new OpenCvSharp.Point((j + 1) * binW, render.Rows),
+                    new OpenCvSharp.Point(j * (int)((double)Width / hdims[0]), render.Rows - (int)(hist.Get<float>(j))),
+                    new OpenCvSharp.Point((j + 1) * (int)((double)Width / hdims[0]), render.Rows),
                     color,
                     -1);
             }
 
             src = src.CvtColor(ColorConversionCodes.GRAY2BGR);
-
             Bitmap bp = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(render);
             pictureBox5.Image = bp;
-
             showFilter(src, "gray equalize");
         }
 
-        public unsafe int[] GetHistogram(Rgb component)
+        public unsafe int[] GetHistogram(Rgb rgb)
         {
-            var histogram = new int[256];
+            var hist = new int[256];
+            Bitmap src = (Bitmap)Image.FromFile(fileName);
+            var data = src.LockBits(new Rectangle(0, 0, src.Width, src.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
 
-            
-                Bitmap OriginalImage = (Bitmap)Image.FromFile(fileName);
+            var offset = data.Stride - src.Width * 3;
+            var po = (byte*)data.Scan0.ToPointer();
 
-                var data = OriginalImage.LockBits(new Rectangle(0, 0, OriginalImage.Width, OriginalImage.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
-
-                var offset = data.Stride - OriginalImage.Width * 3;
-
-                var p = (byte*)data.Scan0.ToPointer();
-
-                for (var i = 0; i < OriginalImage.Height; i++)
-                {
-                    for (var j = 0; j < OriginalImage.Width; j++, p += 3)
-                    {
-                        switch (component)
-                        {
-                            case Rgb.R:
-                                histogram[p[2]]++;
-                                break;
-                            case Rgb.G:
-                                histogram[p[1]]++;
-                                break;
-                            default:
-                                histogram[p[0]]++;
+            for (var i = 0; i < src.Height; i++) {
+                for (var j = 0; j < src.Width; j++, po += 3) {
+                    switch (rgb) {
+                        case Rgb.R:
+                            hist[po[2]]++;
+                            break;
+                        case Rgb.G:
+                            hist[po[1]]++;
+                            break;
+                        default:
+                            hist[po[0]]++;
                                 break;
                         }
                     }
-                    p += offset;
+                    po += offset;
                 }
 
-                OriginalImage.UnlockBits(data);
+            src.UnlockBits(data);
+            return hist;
+        }
 
-            
-            return histogram;
+        private float calc_hist(long hist, int len, int width, int height)
+        {
+            return (hist *len) / (width * height);
         }
 
         public unsafe Bitmap EqualizeHistogram()
         {
-            var finalImg = new Bitmap(pictureBox1.Image.Width, pictureBox1.Image.Height);
+            var dst = new Bitmap(pictureBox1.Image.Width, pictureBox1.Image.Height);
 
-            var rHistogram = GetHistogram(Rgb.R);
-            var gHistogram = GetHistogram(Rgb.G);
-            var bHistogram = GetHistogram(Rgb.B);
+            int[] r_hist = GetHistogram(Rgb.R), g_hist = GetHistogram(Rgb.G), b_hist = GetHistogram(Rgb.B);
+            float[] histR = new float[256], histG = new float[256], histB = new float[256];
 
-            Bitmap OriginalImage = (Bitmap)Image.FromFile(fileName);
-
-            var data = OriginalImage.LockBits(new Rectangle(0, 0, OriginalImage.Width, OriginalImage.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
-            var finalData = finalImg.LockBits(new Rectangle(0, 0, finalImg.Width, finalImg.Height),
+            Bitmap src = (Bitmap)Image.FromFile(fileName);
+            BitmapData data = src.LockBits(new Rectangle(0, 0, src.Width, src.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
+            BitmapData final = dst.LockBits(new Rectangle(0, 0, dst.Width, dst.Height),
                  ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
 
-            var histR = new float[256];
-            var histG = new float[256];
-            var histB = new float[256];
+            histR[0] = calc_hist(r_hist[0], r_hist.Length, final.Width, final.Height);
+            histG[0] = calc_hist(g_hist[0], g_hist.Length, final.Width, final.Height);
+            histB[0] = calc_hist(b_hist[0], b_hist.Length, final.Width, final.Height);
 
-            histR[0] = (rHistogram[0] * rHistogram.Length) / (finalData.Width * finalData.Height);
-            histG[0] = (gHistogram[0] * gHistogram.Length) / (finalData.Width * finalData.Height);
-            histB[0] = (bHistogram[0] * bHistogram.Length) / (finalData.Width * finalData.Height);
+            long cumulativeR = r_hist[0];
+            long cumulativeG = g_hist[0];
+            long cumulativeB = b_hist[0];
 
-            long cumulativeR = rHistogram[0];
-            long cumulativeG = gHistogram[0];
-            long cumulativeB = bHistogram[0];
-
-            for (var i = 1; i < histR.Length; i++)
+            for (var i = 1; i < histR.Length; ++i)
             {
-                cumulativeR += rHistogram[i];
-                histR[i] = (cumulativeR * rHistogram.Length) / (finalData.Width * finalData.Height);
+                cumulativeR += r_hist[i];
+                histR[i] = calc_hist(cumulativeR, r_hist.Length, final.Width, final.Height);
 
-                cumulativeG += gHistogram[i];
-                histG[i] = (cumulativeG * gHistogram.Length) / (finalData.Width * finalData.Height);
+                cumulativeG += g_hist[i];
+                histG[i] = calc_hist(cumulativeG, g_hist.Length, final.Width, final.Height);
 
-                cumulativeB += bHistogram[i];
-                histB[i] = (cumulativeB * bHistogram.Length) / (finalData.Width * finalData.Height);
+                cumulativeB += b_hist[i];
+                histB[i] = calc_hist(cumulativeB, b_hist.Length, final.Width, final.Height);
             }
 
             var ptr = (byte*)data.Scan0;
-            var ptrFinal = (byte*)finalData.Scan0;
+            var ptr_fin = (byte*)final.Scan0;
 
             var remain = data.Stride - data.Width * 3;
 
-            for (var i = 0; i < data.Height; i++, ptr += remain, ptrFinal += remain)
+            for (var i = 0; i < data.Height; ++i, ptr += remain, ptr_fin += remain)
             {
-                for (var j = 0; j < data.Width; j++, ptrFinal += 3, ptr += 3)
+                for (var j = 0; j < data.Width; j++, ptr_fin += 3, ptr += 3)
                 {
-                    var intensityR = ptr[2];
-                    var intensityG = ptr[1];
-                    var intensityB = ptr[0];
+                    byte intensityR = ptr[2], nValueR = (byte)histR[intensityR];
+                    byte intensityG = ptr[1], nValueG = (byte)histG[intensityG];
+                    byte intensityB = ptr[0], nValueB = (byte)histB[intensityB];
 
-                    var nValueR = (byte)histR[intensityR];
-                    var nValueG = (byte)histG[intensityG];
-                    var nValueB = (byte)histB[intensityB];
+                    if (histR[intensityR] < 255) nValueR = 255;
+                    if (histG[intensityG] < 255) nValueG = 255;
+                    if (histB[intensityB] < 255) nValueB = 255;
 
-                    if (histR[intensityR] < 255)
-                        nValueR = 255;
-                    if (histG[intensityG] < 255)
-                        nValueG = 255;
-                    if (histB[intensityB] < 255)
-                        nValueB = 255;
-
-                    ptrFinal[2] = nValueR;
-                    ptrFinal[1] = nValueG;
-                    ptrFinal[0] = nValueB;
+                    ptr_fin[0] = nValueB;
+                    ptr_fin[1] = nValueG;
+                    ptr_fin[2] = nValueR;
+                  
                 }
             }
 
-            OriginalImage.UnlockBits(data);
-            finalImg.UnlockBits(finalData);
+            src.UnlockBits(data);
+            dst.UnlockBits(final);
 
-            return finalImg;
+            return dst;
         }
 
         private void button6_Click(object sender, EventArgs e)
@@ -331,109 +280,78 @@ namespace CG_lab3
           
         }
 
-        private void createHistR(Bitmap bmp)
+        private Bitmap get_rgb_hist(int[] histogram, int histHeight, float max, Pen color)
         {
-            int[] histogram_r = new int[256];
-            float max = 0;
+            Bitmap img = new Bitmap(histogram.Length, histHeight);
 
-            for (int i = 0; i < bmp.Width; i++)
+            using (Graphics g = Graphics.FromImage(img))
             {
-                for (int j = 0; j < bmp.Height; j++)
+                for (int i = 0; i < histogram.Length; i++)
                 {
-                    int redValue = bmp.GetPixel(i, j).R;
-                    
-                    histogram_r[redValue]++;
-                    if (max < histogram_r[redValue])
-                        max = histogram_r[redValue];
-                }
-            }
-
-            int histHeight = pictureBox2.Height;
-            Bitmap img_r = new Bitmap(histogram_r.Length, histHeight);
-
-            using (Graphics g = Graphics.FromImage(img_r))
-            {
-                for (int i = 0; i < histogram_r.Length; i++)
-                {
-                    float pct = histogram_r[i] / max;   // What percentage of the max is this value?
-                    g.DrawLine(Pens.Red,
-                        new System.Drawing.Point(i, img_r.Height),
-                        new System.Drawing.Point(i, img_r.Height - (int)(pct * histHeight))  // Use that percentage of the height
+                    float pct = histogram[i] / max;   // What percentage of the max is this value?
+                    g.DrawLine(color,
+                        new System.Drawing.Point(i, img.Height),
+                        new System.Drawing.Point(i, img.Height - (int)(pct * histHeight))  // Use that percentage of the height
                         );
                 }
             }
 
-            pictureBox2.Image = img_r;
+            return img;
+        }
+
+        private void createHistR(Bitmap bmp)
+        {
+            int[] histogram_r = new int[256];
+            
+            float max = 0;
+            for (int i = 0; i < bmp.Width; ++i)
+            {
+                for (int j = 0; j < bmp.Height; ++j)
+                {
+                    int redValue = bmp.GetPixel(i, j).R;
+                    histogram_r[redValue]++;
+                    if (histogram_r[redValue] > max) max = histogram_r[redValue];
+                }
+            }
+
+            int histHeight = pictureBox2.Height;
+            pictureBox2.Image = get_rgb_hist(histogram_r, histHeight, max, Pens.Red);
         }
 
         private void createHistG(Bitmap bmp)
         {
             int[] histogram_g = new int[256];
             float max = 0;
-
-            for (int i = 0; i < bmp.Width; i++)
+            for (int i = 0; i < bmp.Width; ++i)
             {
-                for (int j = 0; j < bmp.Height; j++)
+                for (int j = 0; j < bmp.Height; ++j)
                 {
-                    int redValue = bmp.GetPixel(i, j).G;
-
-                    histogram_g[redValue]++;
-                    if (max < histogram_g[redValue])
-                        max = histogram_g[redValue];
+                    int greenValue = bmp.GetPixel(i, j).G;
+                    histogram_g[greenValue]++;
+                    if (histogram_g[greenValue] > max) max = histogram_g[greenValue];
                 }
             }
 
-            int histHeight = pictureBox3.Height;
-            Bitmap img_g = new Bitmap(histogram_g.Length, histHeight);
-
-            using (Graphics g = Graphics.FromImage(img_g))
-            {
-                for (int i = 0; i < histogram_g.Length; i++)
-                {
-                    float pct = histogram_g[i] / max;   // What percentage of the max is this value?
-                    g.DrawLine(Pens.Green,
-                        new System.Drawing.Point(i, img_g.Height),
-                        new System.Drawing.Point(i, img_g.Height - (int)(pct * histHeight))  // Use that percentage of the height
-                        );
-                }
-            }
-
-            pictureBox3.Image = img_g;
+            int histHeight = pictureBox2.Height;
+            pictureBox3.Image = get_rgb_hist(histogram_g, histHeight, max, Pens.Green);
         }
 
         private void createHistB(Bitmap bmp)
         {
             int[] histogram_b = new int[256];
             float max = 0;
-
-            for (int i = 0; i < bmp.Width; i++)
+            for (int i = 0; i < bmp.Width; ++i)
             {
-                for (int j = 0; j < bmp.Height; j++)
+                for (int j = 0; j < bmp.Height; ++j)
                 {
-                    int redValue = bmp.GetPixel(i, j).B;
-
-                    histogram_b[redValue]++;
-                    if (max < histogram_b[redValue])
-                        max = histogram_b[redValue];
+                    int blueValue = bmp.GetPixel(i, j).B;
+                    histogram_b[blueValue]++;
+                    if (histogram_b[blueValue] > max) max = histogram_b[blueValue];
                 }
             }
 
-            int histHeight = pictureBox4.Height;
-            Bitmap img_b = new Bitmap(histogram_b.Length, histHeight);
-
-            using (Graphics g = Graphics.FromImage(img_b))
-            {
-                for (int i = 0; i < histogram_b.Length; i++)
-                {
-                    float pct = histogram_b[i] / max;   // What percentage of the max is this value?
-                    g.DrawLine(Pens.Blue,
-                        new System.Drawing.Point(i, img_b.Height),
-                        new System.Drawing.Point(i, img_b.Height - (int)(pct * histHeight))  // Use that percentage of the height
-                        );
-                }
-            }
-
-            pictureBox4.Image = img_b;
+            int histHeight = pictureBox2.Height;
+            pictureBox4.Image = get_rgb_hist(histogram_b, histHeight, max, Pens.Blue);
         }
 
         private void createHistV(Bitmap bmp)
@@ -454,21 +372,8 @@ namespace CG_lab3
             }
 
             int histHeight = pictureBox6.Height;
-            Bitmap img_v = new Bitmap(histogram_v.Length, histHeight);
-
-            using (Graphics g = Graphics.FromImage(img_v))
-            {
-                for (int i = 0; i < histogram_v.Length; i++)
-                {
-                    float pct = histogram_v[i] / max;   // What percentage of the max is this value?
-                    g.DrawLine(Pens.DimGray,
-                        new System.Drawing.Point(i, img_v.Height),
-                        new System.Drawing.Point(i, img_v.Height - (int)(pct * histHeight))  // Use that percentage of the height
-                        );
-                }
-            }
-
-            pictureBox6.Image = img_v;
+            
+            pictureBox6.Image = get_rgb_hist(histogram_v, histHeight, max, Pens.Gray);
         }
 
         private void createHist(Bitmap bmp)
@@ -549,49 +454,47 @@ namespace CG_lab3
         private void button10_Click(object sender, EventArgs e)
         {
             Mat src = new Mat(fileName, ImreadModes.Color);
-            Mat channel = src.ExtractChannel(0);
-            byte[] arr = channel.ToBytes();
-            byte[] arr2 = src.ExtractChannel(1).ToBytes();
-            byte[] arr3 = src.ExtractChannel(2).ToBytes();
+           
 
-            Mat mat = Cv2.ImDecode(arr, ImreadModes.Color);
-
-            Mat FillMatrix = Mat.Zeros(src.Size(), MatType.CV_8UC1);
-            Mat[] bb = { mat.ExtractChannel(0), FillMatrix, FillMatrix };
-
-            Mat merge = new Mat();
-            Cv2.Merge(bb, merge);
-            Cv2.ImShow("w1", merge);
-
-            arr = LinearСontrast(arr);
-
-            mat = Cv2.ImDecode(arr, ImreadModes.Color);
-            Cv2.ImShow("w1", mat);
-
-
-            Mat FillMatrix2 = Mat.Zeros(src.Size(), MatType.CV_8UC1);
-            Mat[] bb2 = { mat.ExtractChannel(0), FillMatrix2, FillMatrix2 };
-
-            Mat merge2 = new Mat();
-            Cv2.Merge(bb2, merge2);
-            Cv2.ImShow("w2", merge2);
+            Bitmap bmp = (Bitmap)Image.FromFile(fileName);
+           
+            byte[] array = new byte[] { };
+            //Cv2.ImEncode(".jpg", src, out array);
+            array = ToByteArray(bmp, ImageFormat.Bmp);
+            array = LinearСontrast(array);
+            Mat mat = Cv2.ImDecode(array, ImreadModes.AnyColor);
+            showFilter(mat, "linear");
 
         }
 
         private byte[] LinearСontrast(byte[] img)
         {
-            
-            byte BrightnessMin = img.Min();
-            byte BrightnessMax = img.Max();
+            int len = img.Length;
+            int min = 255, max = 0;
 
-            for (int i = 0; i < img.Length; i++)
+            for(int i = 54; i< len; i++)
             {
-
-               // MessageBox.Show(img[i].ToString());
-                    img[i] = (byte)(((double)img[i] - BrightnessMin) / (BrightnessMax - BrightnessMin) * 255.0);
-               // MessageBox.Show(img[i].ToString());
+                if( (i-1)% 4 == 0) continue;
+                if (img[i] < min) min = img[i];
+                if (img[i] > max) max = img[i];
             }
-            return img;
+ 
+            for (int i = 54; i < img.Length; i++)
+            {
+                img[i] = (byte)(((double)img[i] - min) / (max - min) * 255.0);
+               
+            }
+
+             return img;
+        }
+
+        private byte[] ToByteArray(Image image, ImageFormat format)
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                image.Save(ms, format);
+                return ms.ToArray();
+            }
         }
 
 
